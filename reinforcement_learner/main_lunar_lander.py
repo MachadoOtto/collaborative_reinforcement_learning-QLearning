@@ -1,34 +1,26 @@
 import logging
 import os
+from argparse import ArgumentParser
+
 import gymnasium as gym
 import numpy as np
 from discrete_agent.Agent import Agent
 from tqdm import tqdm
-from utils import plotLearning
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
+# TODO: ver como hacer para que no dependa de donde se ejecute
 OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
-
-
-def format_score(score: float):
-    return f"{score:.2f}".replace(".", "_")
 
 
 def train(
     agent: Agent,
     env: gym.Env,
     n_games: int,
-    checkpoint: bool = True,
-    epoch: int = 0,
-    loss: float = -np.inf,
-    plot: bool = True,
-):
-    env_name = env.unwrapped.spec.id
+) -> tuple[gym.Env, Agent, dict]:
     scores, eps_history = [], []
-    best_score = loss
 
-    for episode in tqdm(range(n_games)):
+    for _ in tqdm(range(n_games)):
         score = 0
         done = False
         observation, _ = env.reset()
@@ -43,66 +35,111 @@ def train(
         scores.append(score)
         eps_history.append(agent.epsilon)
 
-        # checkpoint the model if the score is better than the last checkpoint
-        if checkpoint and episode > n_games // 2 and score > best_score:
-            best_score = score
-            agent.save_model(
-                epoch=episode,
-                loss=best_score,
-                path=f"{OUT_DIR}/models/{env_name}-{episode+epoch}-{format_score(best_score)}",
-            )
-            logging.info(
-                f"Episode {episode+epoch} with Best Score {best_score} checkpointed"
-            )
-
-        # avg_score = np.mean(scores[-100:])
-
-        # print(
-        #     "episode ",
-        #     i,
-        #     "score %.2f" % score,
-        #     "average score %.2f" % avg_score,
-        #     "epsilon %.2f" % agent.epsilon,
-        # )
-    env.close()
-
-    if plot:
-        x = [i + 1 for i in range(n_games)]
-        plotLearning(
-            x, scores, eps_history, f"{OUT_DIR}/plots/{env_name}-{n_games}.png"
-        )
+    statistics = {"scores": scores, "epsilons": eps_history}
+    return agent, statistics
 
 
-def play(env, agent):
-    agent.Q_eval.eval()
-    for _ in range(5):
-        observation, _ = env.reset()
-        done = False
-        score = 0
-        while not done:
-            action = agent.choose_action(observation)
-            observation_, reward, done, _, _ = env.step(action)
-            score += reward
-            observation = observation_
-        print("score ", score)
-    env.close()
-
-
-if __name__ == "__main__":
-    ENV_NAME = "LunarLander-v2"
-    # maybe use satistics wrapper
-
+def main(env_name: str, n_games: int, **kwargs):
     ag = Agent(
         gamma=0.99,
         epsilon=1.0,
+        eps_dec=0.99941,
+        eps_end=0.01,
         batch_size=64,
         n_actions=4,
-        eps_end=0.01,
         input_dims=[8],
-        lr=0.001,
+        lr=0.0001,
     )
-    epoch, loss = ag.load_model(f"{OUT_DIR}/models/{ENV_NAME}-1208-307_02.tar")
 
-    train(agent=ag, env=gym.make(ENV_NAME), n_games=500, epoch=epoch + 1, loss=loss)
+    # initialize variables or set from pretrained model
+    episode, loss, epsilon = 0, -np.inf, 1.0
+    if kwargs.get("base_checkpoint"):
+        base_checkpoint = kwargs.get("base_checkpoint")
+        episode, loss, epsilon = ag.load_checkpoint(path=base_checkpoint)
+        logging.info(
+            "Checkpoint loaded from %s. With params: epoch %s, loss %s, epsilon %s",
+            base_checkpoint,
+            episode,
+            loss,
+            epsilon,
+        )
+    elif kwargs.get("base_model"):
+        base_model = kwargs.get("base_model")
+        ag.load_model(base_model)
+        logging.info("Model loaded from %s", base_model)
 
-    # play(gym.make(env_name, render_mode="human"), ag)
+    env = gym.make(env_name)
+    # maybe use satistics wrapper
+    ag, statistics = train(agent=ag, env=env, n_games=n_games)
+    env.close()
+
+    total_episodes = episode + n_games
+    model_name = f"{env_name}-{total_episodes}"  # TODO: pensar un mejor sistema de versionado de nombres, algun hash o algo para saber tmbn cual es el modelo base
+
+    out_path = f"{OUT_DIR}/models"
+    if kwargs.get("save_checkpoint"):
+        ag.save_checkpoint(
+            episode=total_episodes,
+            epsilon=statistics["epsilons"][-1],
+            path=out_path,
+            model_name=f"{model_name}{kwargs.get("save_suffix", "")}",
+        )
+        logging.info("Model %s checkpointed at %s", model_name, out_path)
+    if kwargs.get("save_model"):
+        ag.save_model(
+            out_path, model_name=f"{model_name}{kwargs.get("save_suffix", "")}"
+        )
+        logging.info("Model %s saved at %s", model_name, out_path)
+
+    # save statistics as csv (appends if exists)
+    csv_file = f"{OUT_DIR}/stats/{env_name}{kwargs.get("save_suffix", "")}.csv"
+    write_header = not os.path.exists(csv_file)
+    with open(csv_file, "a", encoding="utf-8") as f:
+        if write_header:
+            f.write("episode,score,epsilon\n")
+        for i, (score, epsilon) in enumerate(
+            zip(statistics["scores"], statistics["epsilons"])
+        ):
+            f.write(f"{episode + i},{score},{epsilon}\n")
+    logging.info("Statistics saved at %s", csv_file)
+
+
+if __name__ == "__main__":
+    arg_parser = ArgumentParser()
+    # required
+    arg_parser.add_argument(
+        "--env_name", type=str, required=True, help="Environment to use"
+    )
+    arg_parser.add_argument(
+        "--n_games", type=int, required=True, help="Number of games to play"
+    )
+    # optional
+    arg_parser.add_argument(
+        "--save_model",
+        type=bool,
+        default=False,
+        help="Wheter to save the model weights or not",
+    )
+    arg_parser.add_argument(
+        "--save_checkpoint",
+        type=bool,
+        default=False,
+        help="Wheter to save a full checkpoint or not",
+    )
+    arg_parser.add_argument(
+        "--save_suffix",
+        type=str,
+        default=None,
+        help="Suffix to add to the saved model/checkpoint name",
+    )
+
+    load_group = arg_parser.add_mutually_exclusive_group()
+    load_group.add_argument(
+        "--base_model", type=str, default=None, help="Path to a model to load"
+    )
+    load_group.add_argument(
+        "--base_checkpoint", type=str, default=None, help="Path to a checkpoint to load"
+    )
+
+    args = arg_parser.parse_args()
+    main(**vars(args))
