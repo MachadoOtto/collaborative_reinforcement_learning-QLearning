@@ -50,7 +50,9 @@ class Agent:
 
     def choose_action(self, observation):
         if np.random.random() > self.epsilon:
-            state = T.tensor(np.array(observation), dtype=T.float32).to(self.Q_eval.device)
+            state = T.tensor(np.array(observation), dtype=T.float32).to(
+                self.Q_eval.device
+            )
             actions = self.Q_eval.forward(state)
             action = T.argmax(actions).item()
         else:
@@ -69,14 +71,19 @@ class Agent:
         batch = np.random.choice(max_mem, self.batch_size, replace=False)
         batch_index = np.arange(self.batch_size, dtype=np.int32)
 
-        state_batch = T.tensor(self.state_memory[batch], dtype=T.float32).to(self.Q_eval.device)
-        new_state_batch = T.tensor(
-                self.new_state_memory[batch], dtype=T.float32).to(self.Q_eval.device)
+        state_batch = T.tensor(self.state_memory[batch], dtype=T.float32).to(
+            self.Q_eval.device
+        )
+        new_state_batch = T.tensor(self.new_state_memory[batch], dtype=T.float32).to(
+            self.Q_eval.device
+        )
         action_batch = self.action_memory[batch]
-        reward_batch = T.tensor(
-                self.reward_memory[batch], dtype=T.float32).to(self.Q_eval.device)
-        terminal_batch = T.tensor(
-                self.terminal_memory[batch], dtype=T.bool).to(self.Q_eval.device)
+        reward_batch = T.tensor(self.reward_memory[batch], dtype=T.float32).to(
+            self.Q_eval.device
+        )
+        terminal_batch = T.tensor(self.terminal_memory[batch], dtype=T.bool).to(
+            self.Q_eval.device
+        )
 
         q_eval = self.Q_eval.forward(state_batch)[batch_index, action_batch]
         q_next = self.Q_eval.forward(new_state_batch)
@@ -89,26 +96,41 @@ class Agent:
         self.Q_eval.optimizer.step()
 
         self.iter_cntr += 1
-        self.epsilon = (
-            self.epsilon - self.eps_dec if self.epsilon > self.eps_min else self.eps_min
-        )
+        self.epsilon = max(self.eps_min, self.epsilon * self.eps_dec)
 
-    def save_model(self, epoch, loss, path):
+    def save_checkpoint(
+        self, episode: int, epsilon: float, path: str, model_name: str
+    ) -> None:
         # https://pytorch.org/tutorials/beginner/saving_loading_models.html#saving-loading-a-general-checkpoint-for-inference-and-or-resuming-training
         T.save(
             {
-                "loss": loss,
-                "epoch": epoch,
+                "episode": episode,
+                "epsilon": epsilon,
+                "loss": self.Q_eval.loss,
                 "model_state_dict": self.Q_eval.state_dict(),
                 "optimizer_state_dict": self.Q_eval.optimizer.state_dict(),
             },
-            f"{path}.tar",
+            f"{path}/{model_name}.tar",
         )
 
-    def load_model(self, path):
-        checkpoint = T.load(path, map_location=T.device('cpu'))
-        
+    def load_checkpoint(self, path: str) -> tuple[int, float, float]:
+        checkpoint = T.load(path, map_location=T.device("cpu"))
+
         self.Q_eval.load_state_dict(checkpoint["model_state_dict"])
         self.Q_eval.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        return checkpoint["epoch"], checkpoint["loss"]
+        self.epsilon = checkpoint["epsilon"]
+        return checkpoint["episode"], checkpoint["loss"], checkpoint["epsilon"]
+
+    def save_model(self, path: str, model_name: str) -> None:
+        T.save(self.Q_eval.state_dict(), f"{path}/{model_name}.pt")
+
+    def load_model(self, path: str, from_checkpoint: bool = False) -> None:
+        """
+        Este se usa cuando el master le pase un modelo.
+        Ahi no tiene sentido cargar el optimizador porque cada slave genero un estado del optimizador distinto, tiene que emepezar con un optimizador nuevo.
+        """
+        model_state_dict = T.load(path, map_location=T.device("cpu"))
+        if from_checkpoint:
+            model_state_dict = model_state_dict["model_state_dict"]
+        self.Q_eval.load_state_dict(model_state_dict)
