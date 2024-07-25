@@ -25,6 +25,7 @@ def train(
     loss: float = -np.inf,
     plot: bool = True,
 ):
+    env_name = env.unwrapped.spec.id
     scores, eps_history = [], []
     best_score = loss
 
@@ -89,21 +90,20 @@ def play(env, agent):
 
 
 if __name__ == "__main__":
-    env_name = "LunarLander-v2"
+    ENV_NAME = "LunarLander-v2"
     # maybe use satistics wrapper
 
-    input_dims = [8]
-    agent = Agent(
+    ag = Agent(
         gamma=0.99,
         epsilon=1.0,
         batch_size=64,
         n_actions=4,
         eps_end=0.01,
-        input_dims=input_dims,
+        input_dims=[8],
         lr=0.001,
     )
-    epoch, loss = agent.load_model(f"{OUT_DIR}/models/{env_name}-1208-307_02.tar")
+    epoch, loss = ag.load_model(f"{OUT_DIR}/models/{ENV_NAME}-1208-307_02.tar")
 
-    train(agent, gym.make(env_name), n_games=500, epoch=epoch + 1, loss=loss)
+    train(agent=ag, env=gym.make(ENV_NAME), n_games=500, epoch=epoch + 1, loss=loss)
 
-    # play(gym.make(env_name, render_mode="human"), agent)
+    # play(gym.make(env_name, render_mode="human"), ag)
