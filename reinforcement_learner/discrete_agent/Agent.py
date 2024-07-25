@@ -106,8 +106,8 @@ class Agent:
         )
 
     def load_model(self, path):
-        checkpoint = T.load(path)
-
+        checkpoint = T.load(path, map_location=T.device('cpu'))
+        
         self.Q_eval.load_state_dict(checkpoint["model_state_dict"])
         self.Q_eval.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
