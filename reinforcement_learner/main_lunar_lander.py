@@ -1,6 +1,5 @@
 import logging
 import os
-
 import gymnasium as gym
 import numpy as np
 from discrete_agent.Agent import Agent

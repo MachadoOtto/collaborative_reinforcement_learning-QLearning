@@ -1,4 +1,5 @@
 pip install torch
+pip install tqdm
 pip install gymnasium
 pip install ufal.pybox2d
 pip install flappy-bird-gymnasium
