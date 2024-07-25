@@ -1,42 +1,81 @@
-import gymnasium as gym
-from discrete_agent.Agent import Agent
-from utils import plotLearning
-import numpy as np
+import logging
+import os
 
-if __name__ == '__main__':
-    env = gym.make("LunarLander-v2")
-    agent = Agent(gamma=0.99, epsilon=1.0, batch_size=64, n_actions=4, eps_end=0.01,
-                  input_dims=[8], lr=0.001)
+import gymnasium as gym
+import numpy as np
+from discrete_agent.Agent import Agent
+from tqdm import tqdm
+from utils import plotLearning
+
+logging.basicConfig(level=logging.INFO)
+
+OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
+
+
+def format_score(score: float):
+    return f"{score:.2f}".replace(".", "_")
+
+
+def train(
+    agent: Agent,
+    env: gym.Env,
+    n_games: int,
+    checkpoint: bool = True,
+    epoch: int = 0,
+    loss: float = -np.inf,
+    plot: bool = True,
+):
     scores, eps_history = [], []
-    n_games = 35
-    
-    for i in range(n_games):
+    best_score = loss
+
+    for episode in tqdm(range(n_games)):
         score = 0
         done = False
         observation, _ = env.reset()
         while not done:
             action = agent.choose_action(observation)
-            observation_, reward, done, _, info = env.step(action)
+            observation_, reward, terminated, truncated, _ = env.step(action)
             score += reward
-            agent.store_transition(observation, action, reward, 
-                                    observation_, done)
+            agent.store_transition(observation, action, reward, observation_, done)
             agent.learn()
             observation = observation_
+            done = terminated or truncated
         scores.append(score)
         eps_history.append(agent.epsilon)
 
-        avg_score = np.mean(scores[-100:])
+        # checkpoint the model if the score is better than the last checkpoint
+        if checkpoint and episode > n_games // 2 and score > best_score:
+            best_score = score
+            agent.save_model(
+                epoch=episode,
+                loss=best_score,
+                path=f"{OUT_DIR}/models/{env_name}-{episode+epoch}-{format_score(best_score)}",
+            )
+            logging.info(
+                f"Episode {episode+epoch} with Best Score {best_score} checkpointed"
+            )
 
-        print('episode ', i, 'score %.2f' % score,
-                'average score %.2f' % avg_score,
-                'epsilon %.2f' % agent.epsilon)
-    x = [i+1 for i in range(n_games)]
-    filename = 'll2.png'
-    plotLearning(x, scores, eps_history, filename)
+        # avg_score = np.mean(scores[-100:])
 
-    # Now play the game with the trained agent
-    env = gym.make('LunarLander-v2', render_mode='human')
-    for i in range(5):
+        # print(
+        #     "episode ",
+        #     i,
+        #     "score %.2f" % score,
+        #     "average score %.2f" % avg_score,
+        #     "epsilon %.2f" % agent.epsilon,
+        # )
+    env.close()
+
+    if plot:
+        x = [i + 1 for i in range(n_games)]
+        plotLearning(
+            x, scores, eps_history, f"{OUT_DIR}/plots/{env_name}-{n_games}.png"
+        )
+
+
+def play(env, agent):
+    agent.Q_eval.eval()
+    for _ in range(5):
         observation, _ = env.reset()
         done = False
         score = 0
@@ -45,5 +84,26 @@ if __name__ == '__main__':
             observation_, reward, done, _, _ = env.step(action)
             score += reward
             observation = observation_
-        print('score ', score)
+        print("score ", score)
     env.close()
+
+
+if __name__ == "__main__":
+    env_name = "LunarLander-v2"
+    # maybe use satistics wrapper
+
+    input_dims = [8]
+    agent = Agent(
+        gamma=0.99,
+        epsilon=1.0,
+        batch_size=64,
+        n_actions=4,
+        eps_end=0.01,
+        input_dims=input_dims,
+        lr=0.001,
+    )
+    epoch, loss = agent.load_model(f"{OUT_DIR}/models/{env_name}-1208-307_02.tar")
+
+    train(agent, gym.make(env_name), n_games=500, epoch=epoch + 1, loss=loss)
+
+    # play(gym.make(env_name, render_mode="human"), agent)
