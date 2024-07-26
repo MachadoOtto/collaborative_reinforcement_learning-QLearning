@@ -7,6 +7,8 @@ import numpy as np
 from discrete_agent.Agent import Agent
 from tqdm import tqdm
 
+from ..config import CONFIGS
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 # TODO: ver como hacer para que no dependa de donde se ejecute
@@ -40,15 +42,14 @@ def train(
 
 
 def main(env_name: str, n_games: int, **kwargs):
+    env = gym.make(
+        CONFIGS[env_name]["env"]["name"], **CONFIGS[env_name]["env"]["kwargs"]
+    )
     ag = Agent(
-        gamma=0.99,
-        epsilon=1.0,
-        eps_dec=0.99941,
-        eps_end=0.01,
-        batch_size=64,
-        n_actions=4,
-        input_dims=[8],
-        lr=0.0001,
+        **CONFIGS[env_name]["agent"]["hyperparams"],
+        batch_size=CONFIGS.BATCH_SIZE,
+        input_dims=env.observation_space.shape,
+        n_actions=env.action_space.n,
     )
 
     # initialize variables or set from pretrained model
@@ -68,7 +69,6 @@ def main(env_name: str, n_games: int, **kwargs):
         ag.load_model(base_model)
         logging.info("Model loaded from %s", base_model)
 
-    env = gym.make(env_name)
     # maybe use satistics wrapper
     ag, statistics = train(agent=ag, env=env, n_games=n_games)
     env.close()
@@ -142,4 +142,5 @@ if __name__ == "__main__":
     )
 
     args = arg_parser.parse_args()
+    logging.debug("Script called with args: %s", args)
     main(**vars(args))
