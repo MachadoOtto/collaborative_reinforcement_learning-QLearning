@@ -15,6 +15,8 @@ class Agent:
         max_mem_size=100000,
         eps_end=0.05,
         eps_dec=5e-4,
+        layer1_size=256,
+        layer2_size=256,
     ):
         self.gamma = gamma
         self.epsilon = epsilon
@@ -30,7 +32,11 @@ class Agent:
         self.replace_target = 100
 
         self.Q_eval = DeepQNetwork(
-            lr, n_actions=n_actions, input_dims=input_dims, fc1_dims=256, fc2_dims=256
+            lr,
+            n_actions=n_actions,
+            input_dims=input_dims,
+            fc1_dims=layer1_size,
+            fc2_dims=layer2_size,
         )
         self.state_memory = np.zeros((self.mem_size, *input_dims), dtype=np.float32)
         self.new_state_memory = np.zeros((self.mem_size, *input_dims), dtype=np.float32)

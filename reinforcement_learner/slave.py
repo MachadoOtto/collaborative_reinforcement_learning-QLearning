@@ -7,7 +7,7 @@ import numpy as np
 from discrete_agent.Agent import Agent
 from tqdm import tqdm
 
-from ..config import CONFIGS
+from .config import CONFIGS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
@@ -47,6 +47,7 @@ def main(env_name: str, n_games: int, **kwargs):
     )
     ag = Agent(
         **CONFIGS[env_name]["agent"]["hyperparams"],
+        **CONFIGS.DQN,
         batch_size=CONFIGS.BATCH_SIZE,
         input_dims=env.observation_space.shape,
         n_actions=env.action_space.n,

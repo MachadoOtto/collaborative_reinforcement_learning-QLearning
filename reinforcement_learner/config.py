@@ -1,5 +1,3 @@
-from reinforcement_learner.new_dqn.main import BATCH_SIZE
-
 LUNAR_LANDER = {
     "env": {
         "name": "LunarLander-v2",
@@ -59,17 +57,28 @@ ACROBOT = {
         },
     },
 }
+# Me tira. AttributeError: `np.float_` was removed in the NumPy 2.0 release. Use `np.float64` instead.. Did you mean: 'float16'?
 
 
 CONFIGS = {
-    "LunarLander": LUNAR_LANDER,
-    "FlappyBird": FLAPPY_BIRD,
-    "CartPole": CART_POLE,
-    "Acrobot": ACROBOT,
+    "LunarLander-v2": LUNAR_LANDER,
+    "FlappyBird-v0": FLAPPY_BIRD,
+    "CartPole-v1": CART_POLE,
+    "Acrobot-v1": ACROBOT,
 }
 
 DQN = {
-    "fc1_dims": 256,  # el tutorial usa 128,
-    "fc2_dims": 256,  # el tutorial usa 128,
+    "layer1_size": 256,  # el tutorial usa 128,
+    "layer2_size": 256,  # el tutorial usa 128,
 }
 BATCH_SIZE = 64
+
+TUTORIAL = {
+    "batch_size": 128,
+    "gamma": 0.99,
+    "eps_start": 0.9,
+    "eps_end": 0.05,
+    "eps_decay": 1000,
+    "tau": 0.005,
+    "lr": 1e-4,
+}
