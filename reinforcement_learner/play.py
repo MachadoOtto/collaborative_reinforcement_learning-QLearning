@@ -1,31 +1,39 @@
 import os
 from statistics import median
 
+import config
 import gymnasium as gym
 import numpy as np
-from discrete_agent.Agent import Agent
+import torch
+from discrete_agent.AgentV2 import Agent
 
 OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
 
 
-def watch_n(env_name, agent, n: int = 5):
-    env = gym.make(env_name, render_mode="human")
-    agent.Q_eval.eval()
+def watch_n(env, agent, n: int = 5):
+    agent.eval()
 
     for _ in range(n):
         done = False
         score = 0
-        observation, _ = env.reset()
+        state, _ = env.reset()
+        state = torch.tensor(state, dtype=torch.float32, device="cuda:0").unsqueeze(0)
         while not done:
-            action = agent.choose_action(observation)
-            observation_, reward, terminated, truncated, _ = env.step(action)
+            action = agent.choose_action(state)
+            observation, reward, terminated, truncated, _ = env.step(action.item())
+            reward = torch.tensor([reward], device="cuda:0")
             done = terminated or truncated
-            score += reward
-            observation = observation_
 
+            if terminated:
+                next_state = None
+            else:
+                next_state = torch.tensor(
+                    observation, dtype=torch.float32, device="cuda:0"
+                ).unsqueeze(0)
+
+            state = next_state
+            score += reward.item()
         print("score ", score)
-
-    env.close()
 
 
 def record_bof_n(env_name, agent, n: int = 100):
@@ -36,7 +44,7 @@ def record_bof_n(env_name, agent, n: int = 100):
         name_prefix="LunarLander-v2",
         episode_trigger=lambda x: True,
     )
-    agent.Q_eval.eval()
+    agent.eval()
 
     for _ in range(n):
         done = False
@@ -59,22 +67,30 @@ def record_bof_n(env_name, agent, n: int = 100):
     env.close()
 
 
-def evaluate_n(env_name, agent, n: int = 500):
-    env = gym.make(env_name)
-    agent.Q_eval.eval()
-
+def evaluate_n(env, agent, n: int = 500):
+    agent.eval()
     scores = []
 
     for _ in range(n):
         done = False
         score = 0
-        observation, _ = env.reset()
+        state, _ = env.reset()
+        state = torch.tensor(state, dtype=torch.float32, device="cuda:0").unsqueeze(0)
         while not done:
-            action = agent.choose_action(observation)
-            observation_, reward, terminated, truncated, _ = env.step(action)
+            action = agent.choose_action(state)
+            observation, reward, terminated, truncated, _ = env.step(action.item())
+            reward = torch.tensor([reward], device="cuda:0")
             done = terminated or truncated
-            score += reward
-            observation = observation_
+
+            if terminated:
+                next_state = None
+            else:
+                next_state = torch.tensor(
+                    observation, dtype=torch.float32, device="cuda:0"
+                ).unsqueeze(0)
+
+            state = next_state
+            score += reward.item()
 
         scores.append(score)
 
@@ -85,28 +101,37 @@ def evaluate_n(env_name, agent, n: int = 500):
     print(
         f"Average score: {avg_score}, Median score: {median_score}, Max score: {max_score}, Min score: {min_score}"
     )
-    env.close()
 
 
 def main():
+    env_name = "FlappyBird-v0"
+    if env_name == "FlappyBird-v0":
+        import flappy_bird_gymnasium  # noqa: F401
+
+    env = gym.make(
+        config.CONFIGS[env_name]["env"]["name"],
+        **config.CONFIGS[env_name]["env"]["kwargs"],
+    )
     ag = Agent(
-        gamma=0.99,
-        epsilon=1.0,
-        eps_dec=0.99941,
-        eps_end=0.01,
-        batch_size=64,
-        n_actions=4,
-        input_dims=[8],
-        lr=0.0001,
+        **config.TUTORIAL,
+        env=env,
     )
-    # ag.load_model(f"{OUT_DIR}/models/merged_model.pt")
-    ag.load_model(
-        f"{OUT_DIR}/models/LunarLander-v2-10000-version4.tar", from_checkpoint=True
-    )
+    # ag.load_model(
+    #     f"{OUT_DIR}/models/{env_name}-base1-base2_merged_model.pt"
+    # )  # EL MERGE NO FUNCIONA BIEN
+    ag.load_model(f"{OUT_DIR}/models/{env_name}-5000-base3.tar", from_checkpoint=True)
 
     # record_bof_n(env_name="LunarLander-v2", agent=ag)
-    evaluate_n(env_name="LunarLander-v2", agent=ag)
-    watch_n(env_name="LunarLander-v2", agent=ag)
+    evaluate_n(env=env, agent=ag)
+
+    env.close()
+    env2 = gym.make(
+        config.CONFIGS[env_name]["env"]["name"],
+        **config.CONFIGS[env_name]["env"]["kwargs"],
+        render_mode="human",
+    )
+    watch_n(env=env2, agent=ag)
+    env2.close()
 
 
 if __name__ == "__main__":

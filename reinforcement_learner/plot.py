@@ -24,5 +24,5 @@ def main(csv_path: str, segment: int | None = None) -> None:
 
 
 if __name__ == "__main__":
-    file_path = f"{OUT_DIR}/stats/LunarLander-v2-version4.csv"
+    file_path = f"{OUT_DIR}/stats/FlappyBird-v0-base3.csv"
     main(file_path)
