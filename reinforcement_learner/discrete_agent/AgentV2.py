@@ -47,7 +47,7 @@ class Agent:
         self.optimizer = optim.AdamW(
             self.policy_net.parameters(), lr=self.lr, amsgrad=True
         )
-        self.memory = ReplayMemory(10000)
+        self.memory = ReplayMemory(10_000)
 
         self.steps_done = 0
 
@@ -55,6 +55,7 @@ class Agent:
         self.policy_net.eval()
         self.target_net.eval()
 
+    @property
     def eps_threshold(self):
         return self.eps_end + (self.eps_start - self.eps_end) * math.exp(
             -1.0 * self.steps_done / self.eps_decay
@@ -63,7 +64,7 @@ class Agent:
     def choose_action(self, state):
         sample = random.random()
         self.steps_done += 1
-        if sample > self.eps_threshold():
+        if sample > self.eps_threshold:
             with T.no_grad():
                 # t.max(1) will return the largest column value of each row.
                 # second column on max result is index of where max element was
@@ -124,7 +125,7 @@ class Agent:
             {
                 "episode": episode,
                 "steps_done": self.steps_done,
-                "model_state_dict": self.policy_net.state_dict(),
+                "model_state_dict": self.policy_net.state_dict(),  # capaz cambiar a policy_net_state_dict
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "memory": self.memory,
             },
