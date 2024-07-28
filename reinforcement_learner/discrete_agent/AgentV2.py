@@ -137,7 +137,7 @@ class Agent:
         )
 
     def load_checkpoint(self, path: str) -> tuple[int, float]:
-        checkpoint = T.load(path, map_location=T.device("cpu"))
+        checkpoint = T.load(path, map_location=config.DEVICE)
 
         self.policy_net.load_state_dict(checkpoint["model_state_dict"])
         self.target_net.load_state_dict(checkpoint["model_state_dict"])
@@ -157,7 +157,7 @@ class Agent:
         Este se usa cuando el master le pase un modelo.
         Ahi no tiene sentido cargar el optimizador porque cada slave genero un estado del optimizador distinto, tiene que emepezar con un optimizador nuevo.
         """
-        model_state_dict = T.load(path, map_location=T.device("cpu"))
+        model_state_dict = T.load(path, map_location=T.device(config.DEVICE))
         if from_checkpoint:
             model_state_dict = model_state_dict["model_state_dict"]
 
