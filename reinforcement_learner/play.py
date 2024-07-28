@@ -1,5 +1,7 @@
+import importlib
+import logging
 import os
-from statistics import median
+from argparse import ArgumentParser
 
 import config
 import gymnasium as gym
@@ -7,7 +9,7 @@ import numpy as np
 import torch
 from discrete_agent.AgentV2 import Agent
 
-OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 
 def watch_n(env, agent, n: int = 5):
@@ -17,18 +19,20 @@ def watch_n(env, agent, n: int = 5):
         done = False
         score = 0
         state, _ = env.reset()
-        state = torch.tensor(state, dtype=torch.float32, device="cuda:0").unsqueeze(0)
+        state = torch.tensor(
+            state, dtype=torch.float32, device=config.DEVICE
+        ).unsqueeze(0)
         while not done:
             action = agent.choose_action(state)
             observation, reward, terminated, truncated, _ = env.step(action.item())
-            reward = torch.tensor([reward], device="cuda:0")
+            reward = torch.tensor([reward], device=config.DEVICE)
             done = terminated or truncated
 
             if terminated:
                 next_state = None
             else:
                 next_state = torch.tensor(
-                    observation, dtype=torch.float32, device="cuda:0"
+                    observation, dtype=torch.float32, device=config.DEVICE
                 ).unsqueeze(0)
 
             state = next_state
@@ -75,18 +79,20 @@ def evaluate_n(env, agent, n: int = 500):
         done = False
         score = 0
         state, _ = env.reset()
-        state = torch.tensor(state, dtype=torch.float32, device="cuda:0").unsqueeze(0)
+        state = torch.tensor(
+            state, dtype=torch.float32, device=config.DEVICE
+        ).unsqueeze(0)
         while not done:
             action = agent.choose_action(state)
             observation, reward, terminated, truncated, _ = env.step(action.item())
-            reward = torch.tensor([reward], device="cuda:0")
+            reward = torch.tensor([reward], device=config.DEVICE)
             done = terminated or truncated
 
             if terminated:
                 next_state = None
             else:
                 next_state = torch.tensor(
-                    observation, dtype=torch.float32, device="cuda:0"
+                    observation, dtype=torch.float32, device=config.DEVICE
                 ).unsqueeze(0)
 
             state = next_state
@@ -94,20 +100,14 @@ def evaluate_n(env, agent, n: int = 500):
 
         scores.append(score)
 
-    avg_score = np.mean(scores)
-    median_score = median(scores)
-    max_score = np.max(scores)
-    min_score = np.min(scores)
     print(
-        f"Average score: {avg_score}, Median score: {median_score}, Max score: {max_score}, Min score: {min_score}"
+        f"Episodes: {n}, Average score: {np.mean(scores)}, Median score: {np.median(scores)}, Max score: {np.max(scores)}, Min score: {np.min(scores)}"
     )
 
 
-def main():
-    env_name = "FlappyBird-v0"
-    if env_name == "FlappyBird-v0":
-        import flappy_bird_gymnasium  # noqa: F401
-
+def main(env_name: str, model: str, **kwargs) -> None:
+    if module := config.CONFIGS[env_name]["env"]["import"]:
+        importlib.import_module(module)
     env = gym.make(
         config.CONFIGS[env_name]["env"]["name"],
         **config.CONFIGS[env_name]["env"]["kwargs"],
@@ -116,12 +116,13 @@ def main():
         **config.TUTORIAL,
         env=env,
     )
-    # ag.load_model(
-    #     f"{OUT_DIR}/models/{env_name}-base1-base2_merged_model.pt"
-    # )  # EL MERGE NO FUNCIONA BIEN
-    ag.load_model(f"{OUT_DIR}/models/{env_name}-5000-base3.tar", from_checkpoint=True)
+    # EL MERGE NO ESTA FUNCIONANDO BIEN
+    ag.load_model(
+        f"{config.OUT_DIR}/models/{model}", from_checkpoint=model.endswith(".tar")
+    )
 
-    # record_bof_n(env_name="LunarLander-v2", agent=ag)
+    ### TODO: ifs que comando selecciono eval, o bof, o record
+
     evaluate_n(env=env, agent=ag)
 
     env.close()
@@ -135,4 +136,19 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    arg_parser = ArgumentParser()
+    # required
+    arg_parser.add_argument(
+        "--env_name", type=str, required=True, help="Environment to use"
+    )
+    arg_parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="Model to load. Ex. 'LunarLander-v2-5000-base1.tar'",
+    )
+    # optional
+
+    args = arg_parser.parse_args()
+    logging.debug("Script called with args: %s", args)
+    main(**vars(args))

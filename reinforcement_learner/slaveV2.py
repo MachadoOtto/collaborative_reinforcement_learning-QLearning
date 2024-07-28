@@ -11,9 +11,6 @@ from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
-# TODO: ver como hacer para que no dependa de donde se ejecute
-OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
-
 
 def train(
     agent: Agent,
@@ -26,18 +23,20 @@ def train(
         score = 0
         done = False
         state, _ = env.reset()
-        state = torch.tensor(state, dtype=torch.float32, device="cuda:0").unsqueeze(0)
+        state = torch.tensor(
+            state, dtype=torch.float32, device=config.DEVICE
+        ).unsqueeze(0)
         while not done:
             action = agent.choose_action(state)
             observation, reward, terminated, truncated, _ = env.step(action.item())
-            reward = torch.tensor([reward], device="cuda:0")
+            reward = torch.tensor([reward], device=config.DEVICE)
             done = terminated or truncated
 
             if terminated:
                 next_state = None
             else:
                 next_state = torch.tensor(
-                    observation, dtype=torch.float32, device="cuda:0"
+                    observation, dtype=torch.float32, device=config.DEVICE
                 ).unsqueeze(0)
 
             agent.memory.push(state, action, next_state, reward)
@@ -88,7 +87,7 @@ def main(env_name: str, n_games: int, **kwargs):
     total_episodes = episode + n_games
     model_name = f"{env_name}-{total_episodes}"  # TODO: pensar un mejor sistema de versionado de nombres, algun hash o algo para saber tmbn cual es el modelo base
 
-    out_path = f"{OUT_DIR}/models"
+    out_path = f"{config.OUT_DIR}/models"
     if kwargs.get("save_checkpoint"):
         ag.save_checkpoint(
             episode=total_episodes,
@@ -103,7 +102,7 @@ def main(env_name: str, n_games: int, **kwargs):
         logging.info("Model %s saved at %s", model_name, out_path)
 
     # save statistics as csv (appends if exists)
-    csv_file = f"{OUT_DIR}/stats/{env_name}{kwargs.get("save_suffix", "")}.csv"
+    csv_file = f"{config.OUT_DIR}/stats/{env_name}{kwargs.get("save_suffix", "")}.csv"
     write_header = not os.path.exists(csv_file)
     with open(csv_file, "a", encoding="utf-8") as f:
         if write_header:

@@ -1,3 +1,7 @@
+import os
+
+import torch
+
 LUNAR_LANDER = {
     "env": {
         "name": "LunarLander-v2",
@@ -17,6 +21,7 @@ FLAPPY_BIRD = {
     "env": {
         "name": "FlappyBird-v0",
         "kwargs": {"use_lidar": False},
+        "import": "flappy_bird_gymnasium",
     },
     "agent": {
         "hyperparams": {
@@ -82,3 +87,12 @@ TUTORIAL = {
     "tau": 0.005,
     "lr": 1e-4,
 }
+
+OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
+DEVICE = torch.device(
+    "cuda:0"
+    if torch.cuda.is_available()
+    else "mps"
+    if torch.backends.mps.is_available()
+    else "cpu"
+)

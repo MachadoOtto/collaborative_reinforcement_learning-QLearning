@@ -2,18 +2,12 @@ import math
 import random
 from collections import deque, namedtuple
 
+import config
 import torch as T
 import torch.nn as nn
 import torch.optim as optim
 from deep_q_network.DeepQNetworkV2 import DQN
 
-DEVICE = T.device(
-    "cuda"
-    if T.cuda.is_available()
-    else "mps"
-    if T.backends.mps.is_available()
-    else "cpu"
-)
 Transition = namedtuple("Transition", ("state", "action", "next_state", "reward"))
 
 
@@ -46,8 +40,8 @@ class Agent:
         self.n_observations = env.observation_space.shape[0]
         self.n_actions = env.action_space.n
 
-        self.policy_net = DQN(self.n_observations, self.n_actions).to(DEVICE)
-        self.target_net = DQN(self.n_observations, self.n_actions).to(DEVICE)
+        self.policy_net = DQN(self.n_observations, self.n_actions).to(config.DEVICE)
+        self.target_net = DQN(self.n_observations, self.n_actions).to(config.DEVICE)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.AdamW(
@@ -77,7 +71,7 @@ class Agent:
                 return self.policy_net(state).max(1).indices.view(1, 1)
         else:
             return T.tensor(
-                [[self.env.action_space.sample()]], device=DEVICE, dtype=T.long
+                [[self.env.action_space.sample()]], device=config.DEVICE, dtype=T.long
             )
 
     def learn(self):
@@ -89,7 +83,7 @@ class Agent:
 
         non_final_mask = T.tensor(
             tuple(map(lambda s: s is not None, batch.next_state)),
-            device=DEVICE,
+            device=config.DEVICE,
             dtype=T.bool,
         )
         non_final_next_states = T.cat([s for s in batch.next_state if s is not None])
@@ -98,7 +92,7 @@ class Agent:
         reward_batch = T.cat(batch.reward)
 
         state_action_values = self.policy_net(state_batch).gather(1, action_batch)
-        next_state_values = T.zeros(self.batch_size, device=DEVICE)
+        next_state_values = T.zeros(self.batch_size, device=config.DEVICE)
         with T.no_grad():
             next_state_values[non_final_mask] = (
                 self.target_net(non_final_next_states).max(1).values

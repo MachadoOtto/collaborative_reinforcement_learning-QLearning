@@ -1,5 +1,6 @@
+import importlib
 import logging
-import os
+from argparse import ArgumentParser
 
 import config
 import gymnasium as gym
@@ -7,8 +8,6 @@ import torch
 from discrete_agent.AgentV2 import Agent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
-
-OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
 
 
 def merge_models(agent: Agent, model_states: list[dict], out_path: str) -> None:
@@ -39,10 +38,9 @@ def merge_models(agent: Agent, model_states: list[dict], out_path: str) -> None:
     logging.info("Master model updated at %s", out_path)
 
 
-def main():
-    env_name = "FlappyBird-v0"
-    if env_name == "FlappyBird-v0":
-        import flappy_bird_gymnasium  # noqa: F401
+def main(env_name: str, suffixes: list[str], **kwargs) -> None:
+    if module := config.CONFIGS[env_name]["env"]["import"]:
+        importlib.import_module(module)
 
     env = gym.make(
         config.CONFIGS[env_name]["env"]["name"],
@@ -53,21 +51,42 @@ def main():
         env=env,
     )
 
-    suffixes = ["-base1", "-base2"]
     model_states = [
         torch.load(
-            f"{OUT_DIR}/models/{env_name}-1000{suff}.tar",
+            f"{config.OUT_DIR}/models/{env_name}{suff}.tar",
             map_location=torch.device("cpu"),
         )["model_state_dict"]
         for suff in suffixes
     ]
 
-    MASTER_MODEL_PATH = (
-        f"{OUT_DIR}/models/{env_name}-{"".join(suffixes)}_merged_model.pt"
+    out_path = kwargs.get(
+        "out_path",
+        f"{config.OUT_DIR}/models/{env_name}-{"".join(suffixes)}_merged_model.pt",
     )
 
-    merge_models(agent, model_states, MASTER_MODEL_PATH)
+    merge_models(agent, model_states, out_path)
 
 
 if __name__ == "__main__":
-    main()
+    arg_parser = ArgumentParser()
+    # required
+    arg_parser.add_argument(
+        "--env_name", type=str, required=True, help="Environment to use"
+    )
+    arg_parser.add_argument(
+        "--suffixes",
+        type=lambda x: x.split(","),
+        required=True,
+        help="Comma-separated list of suffixes of the same environment models to merge. Ex. ['-1000-base1', '-1000-base2']",
+    )
+    # optional
+    arg_parser.add_argument(
+        "--out_path",
+        type=str,
+        default=None,
+        help="Path to save the merged model. Default: '{OUT_DIR}/models/{env_name}-{suffixes}_merged_model.pt' ",
+    )
+
+    args = arg_parser.parse_args()
+    logging.debug("Script called with args: %s", args)
+    main(**vars(args))

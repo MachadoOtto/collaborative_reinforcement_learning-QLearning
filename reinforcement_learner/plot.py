@@ -1,9 +1,8 @@
-import os
+from argparse import ArgumentParser
 
+import config
 import pandas as pd
 from utils import plot_learning
-
-OUT_DIR = f"{os.path.dirname(os.path.realpath(__file__))}/outputs"
 
 
 def main(csv_path: str, segment: int | None = None) -> None:
@@ -19,10 +18,16 @@ def main(csv_path: str, segment: int | None = None) -> None:
         data.index.values,
         data["score"],
         data["epsilon"],
-        f"{OUT_DIR}/plots/{model_name}-{segment}.png",
+        f"{config.OUT_DIR}/plots/{model_name}-{segment}.png",
     )
 
 
 if __name__ == "__main__":
-    file_path = f"{OUT_DIR}/stats/FlappyBird-v0-base3.csv"
-    main(file_path)
+    parser = ArgumentParser()
+    parser.add_argument("--csv", type=str, required=True, help="Path to the csv file")
+    parser.add_argument(
+        "--segment", type=int, default=None, help="Max number of episodes to plot"
+    )
+
+    args = parser.parse_args()
+    main(csv_path=args.csv, segment=args.segment)
