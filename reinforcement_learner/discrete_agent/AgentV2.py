@@ -55,6 +55,10 @@ class Agent:
         self.policy_net.eval()
         self.target_net.eval()
 
+    def train(self):
+        self.policy_net.train()
+        self.target_net.train()
+
     @property
     def eps_threshold(self):
         return self.eps_end + (self.eps_start - self.eps_end) * math.exp(

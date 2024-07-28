@@ -18,6 +18,7 @@ def train(
     env: gym.Env,
     n_games: int,
 ) -> tuple[gym.Env, Agent, dict]:
+    agent.train()
     stats = []
 
     for _ in tqdm(range(n_games)):
