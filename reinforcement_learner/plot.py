@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 import config
 import pandas as pd
 from utils import plot_learning
+from utils_plot import plot_learning_curve
 
 
 def main(csv_path: str, segment: int | None = None) -> None:
@@ -16,10 +17,12 @@ def main(csv_path: str, segment: int | None = None) -> None:
 
     plot_learning(
         data.index.values,
-        data["score"],
+        data["cumulative_reward"],
         data["epsilon"],
         f"{config.OUT_DIR}/plots/{model_name}-{segment}.png",
     )
+
+    plot_learning_curve(data["cumulative_reward"])
 
 
 if __name__ == "__main__":

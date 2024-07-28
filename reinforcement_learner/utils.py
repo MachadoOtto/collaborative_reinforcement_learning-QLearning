@@ -1,9 +1,28 @@
+import csv
+from dataclasses import asdict, dataclass
+
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 
-# def format_score(score: float):
-#     return f"{score:.2f}".replace(".", "_")
+
+@dataclass(slots=True, frozen=True)
+class StatPoint:
+    cumulative_reward: float
+    episode_length: int
+    time: float
+    epsilon: float
+
+
+def save_stats_to_csv(stats: list[StatPoint], csv_file: str, write_header: bool = True):
+    with open(csv_file, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+
+        if write_header:
+            writer.writerow(["episode"] + list(asdict(stats[0]).keys()))
+
+        for i, stat in enumerate(stats):
+            writer.writerow([i] + list(asdict(stat).values()))
 
 
 def plot_learning(x, scores, epsilons, filename, lines=None):
@@ -37,8 +56,8 @@ def plot_learning(x, scores, epsilons, filename, lines=None):
     # total avg horizontal line
     ax2.axhline(y=np.mean(scores), color="red", linestyle="--")
     # 1000-game segment averages
-    for i in range(0, N, 1000):
-        end = min(i + 1000, N)
+    for i in range(0, N, 50):
+        end = min(i + 50, N)
         segment_avg = np.mean(scores[i:end])
         ax2.hlines(
             y=segment_avg, xmin=i, xmax=end, color="green", linestyle="-", linewidth=2
@@ -146,5 +165,4 @@ def make_env(env_name):
     env = PreProcessFrame(env)
     env = MoveImgChannel(env)
     env = BufferWrapper(env, 4)
-    return ScaleFrame(env)
     return ScaleFrame(env)
