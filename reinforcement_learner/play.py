@@ -72,7 +72,8 @@ def record(env_kwargs, agent, n=100):
     agent.eval()
 
     for _ in range(n):
-        score = run_episode(env, agent, record_video=True)
+        data = run_episode(env, agent, record_video=True)
+        score = data["r"][0]
         print("score ", score)
         if score <= 0:
             os.remove(env.video_recorder.path)
@@ -121,14 +122,14 @@ def main(env_name: str, model: str, **kwargs) -> None:
         f"{config.OUT_DIR}/models/{model}", from_checkpoint=model.endswith(".tar")
     )
 
-    if n_record := kwargs.get("record") is not None:
-        record(env_kwargs=config.CONFIGS[env_name], agent=ag, n=n_record)
+    if kwargs.get("record") is not None:
+        record(env_kwargs=config.CONFIGS[env_name], agent=ag, n=kwargs["record"])
 
-    if n_evaluate := kwargs.get("evaluate") is not None:
-        evaluate(env_kwargs=config.CONFIGS[env_name], agent=ag, n=n_evaluate)
+    if kwargs.get("evaluate") is not None:
+        evaluate(env_kwargs=config.CONFIGS[env_name], agent=ag, n=kwargs["evaluate"])
 
-    if n_watch := kwargs.get("watch") is not None:
-        watch(env_kwargs=config.CONFIGS[env_name], agent=ag, n=n_watch)
+    if kwargs.get("watch") is not None:
+        watch(env_kwargs=config.CONFIGS[env_name], agent=ag, n=kwargs["watch"])
 
 
 if __name__ == "__main__":
