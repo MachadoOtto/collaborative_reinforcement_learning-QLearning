@@ -15,7 +15,7 @@
 #define ENV_NAME "CartPole-v1"
 #define TIMEOUT_TIME 300 // 5 minutes
 #define N_GAMES 100
-#define BASE_MODEL_PATH "./outputs/models/"
+#define BASE_MODEL_PATH "./reinforcement_learner/outputs/models/"
 
 // Master variables
 #define MASTER 0
@@ -242,9 +242,9 @@ void slave(int rank) {
                 free(current_model);
             }
             current_model = receive_model_from_master(model_size, rank);
-            sprintf(command, "timeout %d python3 ./reinforcement_learner/slave.py --env_name=%s --n_games=%d --save_model=True --base_model=%s%d-%s-model.pt --out_path=%s%d-%s-model.pt", TIMEOUT_TIME, ENV_NAME, N_GAMES, BASE_MODEL_PATH, rank, ENV_NAME, BASE_MODEL_PATH, rank, ENV_NAME);
+            sprintf(command, "timeout %d python3 ./reinforcement_learner/slave.py --env_name=%s --n_games=%d --save_model=True --base_model=%s%d-%s-model.pt --file_name=%d-%s-model", TIMEOUT_TIME, ENV_NAME, N_GAMES, BASE_MODEL_PATH, rank, ENV_NAME, rank, ENV_NAME);
         } else {
-            sprintf(command, "timeout %d python3 ./reinforcement_learner/slave.py --env_name=%s --n_games=%d --save_model=True --out_path=%s%d-%s-model.pt", TIMEOUT_TIME, ENV_NAME, N_GAMES, BASE_MODEL_PATH, rank, ENV_NAME);
+            sprintf(command, "timeout %d python3 ./reinforcement_learner/slave.py --env_name=%s --n_games=%d --save_model=True --file_name=%d-%s-model", TIMEOUT_TIME, ENV_NAME, N_GAMES, rank, ENV_NAME);
         }
         // Execute the python script
         int status = system(command);
