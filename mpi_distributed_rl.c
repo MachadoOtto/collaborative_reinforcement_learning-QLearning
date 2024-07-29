@@ -91,8 +91,10 @@ FILE *load_model(char *model_filename, long *model_size) {
 
 // Main master logic
 void master() {
-    MPI_Status request_slave_ready;
-    MPI_Status request_slave_model;
+    MPI_Request request_slave_ready;
+    MPI_Status status_slave_ready;
+    MPI_Request request_slave_model;
+    MPI_Status status_slave_model;
     int slave_rank;
 
     int flag_ready = 1;
@@ -113,8 +115,8 @@ void master() {
             MPI_Test(&request_slave_ready, &flag_ready, MPI_STATUS_IGNORE);
             if (flag_ready) {
                 // There is a slave ready
-                // MPI_Wait(&request_slave_ready, MPI_STATUS_IGNORE); Innecesario
-                slave_rank = request_slave_ready.MPI_SOURCE;
+                MPI_Wait(&request_slave_ready, &status_slave_ready);
+                slave_rank = status_slave_ready.MPI_SOURCE;
                 if (orders_complete < MAX_ORDERS) {
                     send_order_to_slave(slave_rank, flag_no_model, model_file, model_size);
                 } else {
@@ -133,10 +135,10 @@ void master() {
             MPI_Test(&request_slave_model, &flag_complete, MPI_STATUS_IGNORE);
             if (flag_complete) {
                 // There is a model to receive
-                // MPI_Wait(&request_slave_model, MPI_STATUS_IGNORE); Innecesario
+                MPI_Wait(&request_slave_model, &status_slave_model);
                 if (!flag_no_model) {
                     model_size = slave_model_size;
-                    model_file = receive_model_from_slave(request_slave_model.MPI_SOURCE, slave_model_size);
+                    model_file = receive_model_from_slave(status_slave_model.MPI_SOURCE, slave_model_size);
 
                     // Save the model to a file (BASE_MODEL_PATH)
                     char model_filename[FILENAME_MAX];
@@ -145,16 +147,16 @@ void master() {
                     orders_complete++;
                 } else {
                     // If there is a model already, save it to a .pt file, and free it
-                    FILE *slave_model = receive_model_from_slave(request_slave_model.MPI_SOURCE, slave_model_size);
+                    FILE *slave_model = receive_model_from_slave(status_slave_model.MPI_SOURCE, slave_model_size);
                     char slave_model_filename[FILENAME_MAX];
-                    sprintf(slave_model_filename, "%s%s-model%d.pt", BASE_MODEL_PATH, ENV_NAME, request_slave_model.MPI_SOURCE);
+                    sprintf(slave_model_filename, "%s%s-model%d.pt", BASE_MODEL_PATH, ENV_NAME, status_slave_model.MPI_SOURCE);
                     save_model_to_file(slave_model, slave_model_size, slave_model_filename);
                     free(slave_model);
                     
                     // Free the model file and save the merged model
-                    merge_models(request_slave_model.MPI_SOURCE);
+                    merge_models(status_slave_model.MPI_SOURCE);
                     char new_model_filename[FILENAME_MAX];
-                    sprintf(new_model_filename, "%s%s-model%d-modelogeneral_merged_model.pt", BASE_MODEL_PATH, ENV_NAME, request_slave_model.MPI_SOURCE);
+                    sprintf(new_model_filename, "%s%s-model%d-modelogeneral_merged_model.pt", BASE_MODEL_PATH, ENV_NAME, status_slave_model.MPI_SOURCE);
                     free(model_file);
                     model_file = load_model(new_model_filename, &model_size);
                     orders_complete++;
