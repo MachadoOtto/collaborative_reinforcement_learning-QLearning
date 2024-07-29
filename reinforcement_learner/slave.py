@@ -85,15 +85,14 @@ def main(env_name: str, n_games: int, **kwargs):
     env.close()
 
     total_episodes = episode + n_games
-    model_name = f"{env_name}-{total_episodes}"  # TODO: pensar un mejor sistema de versionado de nombres, algun hash o algo para saber tmbn cual es el modelo base
-
+    
     out_path = kwargs.get("out_path") or f"{config.OUT_DIR}/models"
     if kwargs.get("save_checkpoint"):
-        ag.save_checkpoint(episode=total_episodes, path=out_path, model_name=model_name)
-        logging.info("Model %s checkpointed at %s", model_name, out_path)
+        ag.save_checkpoint(episode=total_episodes, path=out_path)
+        logging.info("Model checkpointed at %s", out_path)
     if kwargs.get("save_model"):
-        ag.save_model(out_path, model_name=model_name)
-        logging.info("Model %s saved at %s", model_name, out_path)
+        ag.save_model(out_path)
+        logging.info("Model saved at %s", out_path)
 
     csv_file = f"{config.OUT_DIR}/stats/{env_name}.csv"
     save_stats_to_csv(statistics, csv_file, write_header=not os.path.exists(csv_file))

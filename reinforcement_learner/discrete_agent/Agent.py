@@ -123,7 +123,7 @@ class Agent:
             ] * self.tau + target_net_state_dict[key] * (1 - self.tau)
         self.target_net.load_state_dict(target_net_state_dict)
 
-    def save_checkpoint(self, episode: int, path: str, model_name: str) -> None:
+    def save_checkpoint(self, episode: int, path: str) -> None:
         # https://pytorch.org/tutorials/beginner/saving_loading_models.html#saving-loading-a-general-checkpoint-for-inference-and-or-resuming-training
         T.save(
             {
@@ -133,7 +133,7 @@ class Agent:
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "memory": self.memory,
             },
-            f"{path}/{model_name}.tar",
+            f"{path}.tar",
         )
 
     def load_checkpoint(self, path: str) -> tuple[int, float]:
@@ -148,9 +148,9 @@ class Agent:
 
         return checkpoint["episode"], self.eps_threshold()
 
-    def save_model(self, path: str, model_name: str) -> None:
+    def save_model(self, path: str) -> None:
         """Save for inference. Only the model."""
-        T.save(self.policy_net.state_dict(), f"{path}/{model_name}.pt")
+        T.save(self.policy_net.state_dict(), f"{path}.pt")
 
     def load_model(self, path: str, from_checkpoint: bool = False) -> None:
         """
