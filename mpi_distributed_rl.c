@@ -46,7 +46,14 @@ FILE *receive_model_from_slave(int slave_rank, long slave_model_size) {
         perror("Failed to allocate buffer for MPI_Recv");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    MPI_Recv(slave_model_file, slave_model_size, MPI_BYTE, slave_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    // Receive the model from the slave in chunks of 1MB
+    int offset = 0;
+    printf("MASTER Receiving model\n");
+    while (offset < slave_model_size) {
+        int chunk_size = slave_model_size - offset > 1048576 ? 1048576 : slave_model_size - offset;
+        MPI_Recv(slave_model_file + offset, chunk_size, MPI_BYTE, slave_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        offset += chunk_size;
+    }
     return slave_model_file;
 }
 
@@ -209,8 +216,16 @@ void send_model_to_master(int master_rank, char *model_filename) {
     }
     fread(buffer, 1, file_size, file);
     fclose(file);
+    printf("Sending size\n");
     MPI_Send(&file_size, 1, MPI_LONG, master_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD);
-    MPI_Send(buffer, file_size, MPI_BYTE, master_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD);
+    // Send the model in chunks of 1MB
+    int offset = 0;
+    printf("Sending model\n");
+    while (offset < file_size) {
+        int chunk_size = file_size - offset > 1048576 ? 1048576 : file_size - offset;
+        MPI_Send(buffer + offset, chunk_size, MPI_BYTE, master_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD);
+        offset += chunk_size;
+    }
     free(buffer);
 }
 
