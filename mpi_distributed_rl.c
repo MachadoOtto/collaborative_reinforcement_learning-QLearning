@@ -9,6 +9,8 @@
 #define TAG_MODEL_TO_MASTER 3
 #define TAG_READY_SLAVE 4
 #define TAG_FINISH 5
+#define TAG_SIZE_MODEL_TO_SLAVE 6
+#define TAG_SIZE_MODEL_TO_MASTER 7
 
 // Global constants
 #define MAX_ORDERS 30
@@ -31,10 +33,10 @@ void send_order_to_slave(int slave_rank, int flag_no_model, FILE *model_file, lo
     if (flag_no_model) {
         // Send model size equal to 0
         long zero_model_size = 0;
-        MPI_Send(&zero_model_size, 1, MPI_LONG, slave_rank, TAG_MODEL_TO_SLAVE, MPI_COMM_WORLD);
+        MPI_Send(&zero_model_size, 1, MPI_LONG, slave_rank, TAG_SIZE_MODEL_TO_SLAVE, MPI_COMM_WORLD);
     } else {
         // Send model size and model
-        MPI_Send(&model_size, 1, MPI_LONG, slave_rank, TAG_MODEL_TO_SLAVE, MPI_COMM_WORLD);
+        MPI_Send(&model_size, 1, MPI_LONG, slave_rank, TAG_SIZE_MODEL_TO_SLAVE, MPI_COMM_WORLD);
         MPI_Send(model_file, model_size, MPI_BYTE, slave_rank, TAG_MODEL_TO_SLAVE, MPI_COMM_WORLD);
     }
 }
@@ -48,7 +50,6 @@ FILE *receive_model_from_slave(int slave_rank, long slave_model_size) {
     }
     // Receive the model from the slave in chunks of 1MB
     int offset = 0;
-    printf("MASTER Receiving model\n");
     while (offset < slave_model_size) {
         int chunk_size = slave_model_size - offset > 1048576 ? 1048576 : slave_model_size - offset;
         MPI_Recv(slave_model_file + offset, chunk_size, MPI_BYTE, slave_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -136,7 +137,7 @@ void master() {
 
         // Check for models from slaves
         if (flag_complete) {
-            MPI_Irecv(&slave_model_size, 1, MPI_LONG, MPI_ANY_SOURCE, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, &request_slave_model);
+            MPI_Irecv(&slave_model_size, 1, MPI_LONG, MPI_ANY_SOURCE, TAG_SIZE_MODEL_TO_MASTER, MPI_COMM_WORLD, &request_slave_model);
             flag_complete = 0;
         } else {
             MPI_Test(&request_slave_model, &flag_complete, &status_slave_model);
@@ -145,7 +146,7 @@ void master() {
                 printf("[MASTER] Receiving model from slave %d\n", status_slave_model.MPI_SOURCE);
                 if (!flag_no_model) {
                     model_size = slave_model_size;
-                    model_file = receive_model_from_slave(status_slave_model.MPI_SOURCE, slave_model_size);
+                    model_file = receive_model_from_slave(status_slave_model.MPI_SOURCE, model_size);
 
                     // Save the model to a file (BASE_MODEL_PATH)
                     char model_filename[FILENAME_MAX];
@@ -217,7 +218,7 @@ void send_model_to_master(int master_rank, char *model_filename) {
     fread(buffer, 1, file_size, file);
     fclose(file);
     printf("Sending size\n");
-    MPI_Send(&file_size, 1, MPI_LONG, master_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD);
+    MPI_Send(&file_size, 1, MPI_LONG, master_rank, TAG_SIZE_MODEL_TO_MASTER, MPI_COMM_WORLD);
     // Send the model in chunks of 1MB
     int offset = 0;
     printf("Sending model\n");
@@ -250,7 +251,7 @@ void slave(int rank) {
         }
         // Receive size of model, if it is 0, there is no model to receive
         long model_size;
-        MPI_Recv(&model_size, 1, MPI_LONG, MASTER, TAG_MODEL_TO_SLAVE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&model_size, 1, MPI_LONG, MASTER, TAG_SIZE_MODEL_TO_SLAVE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         char command[512];
         if (model_size > 0) {
             if (current_model) {
