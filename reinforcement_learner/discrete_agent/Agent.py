@@ -6,7 +6,7 @@ import config
 import torch as T
 import torch.nn as nn
 import torch.optim as optim
-from reinforcement_learner.deep_q_network.DeepQNetwork import DQN
+from deep_q_network.DeepQNetwork import DQN
 
 Transition = namedtuple("Transition", ("state", "action", "next_state", "reward"))
 

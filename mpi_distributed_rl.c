@@ -112,10 +112,9 @@ void master() {
             MPI_Irecv(NULL, 0, MPI_BYTE, MPI_ANY_SOURCE, TAG_READY_SLAVE, MPI_COMM_WORLD, &request_slave_ready);
             flag_ready = 0;
         } else {
-            MPI_Test(&request_slave_ready, &flag_ready, MPI_STATUS_IGNORE);
+            MPI_Test(&request_slave_ready, &flag_ready, &status_slave_ready);
             if (flag_ready) {
                 // There is a slave ready
-                MPI_Wait(&request_slave_ready, &status_slave_ready);
                 slave_rank = status_slave_ready.MPI_SOURCE;
                 if (orders_complete < MAX_ORDERS) {
                     printf("[MASTER] Sending order to slave %d\n", slave_rank);
@@ -133,10 +132,9 @@ void master() {
             MPI_Irecv(&slave_model_size, 1, MPI_LONG, MPI_ANY_SOURCE, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, &request_slave_model);
             flag_complete = 0;
         } else {
-            MPI_Test(&request_slave_model, &flag_complete, MPI_STATUS_IGNORE);
+            MPI_Test(&request_slave_model, &flag_complete, &status_slave_model);
             if (flag_complete) {
                 // There is a model to receive
-                MPI_Wait(&request_slave_model, &status_slave_model);
                 printf("[MASTER] Receiving model from slave %d\n", status_slave_model.MPI_SOURCE);
                 if (!flag_no_model) {
                     model_size = slave_model_size;

@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import config
 import gymnasium as gym
 import torch
-from reinforcement_learner.discrete_agent.Agent import Agent
+from discrete_agent.Agent import Agent
 from tqdm import tqdm
 from utils import StatPoint, save_stats_to_csv
 
