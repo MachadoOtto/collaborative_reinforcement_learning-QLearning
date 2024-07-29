@@ -118,6 +118,7 @@ void master() {
                 MPI_Wait(&request_slave_ready, &status_slave_ready);
                 slave_rank = status_slave_ready.MPI_SOURCE;
                 if (orders_complete < MAX_ORDERS) {
+                    printf("[MASTER] Sending order to slave %d\n", slave_rank);
                     send_order_to_slave(slave_rank, flag_no_model, model_file, model_size);
                 } else {
                     char finish_msg[16];
@@ -136,6 +137,7 @@ void master() {
             if (flag_complete) {
                 // There is a model to receive
                 MPI_Wait(&request_slave_model, &status_slave_model);
+                printf("[MASTER] Receiving model from slave %d\n", status_slave_model.MPI_SOURCE);
                 if (!flag_no_model) {
                     model_size = slave_model_size;
                     model_file = receive_model_from_slave(status_slave_model.MPI_SOURCE, slave_model_size);
@@ -159,6 +161,7 @@ void master() {
                     sprintf(new_model_filename, "%s%s-model%d-modelogeneral_merged_model.pt", BASE_MODEL_PATH, ENV_NAME, status_slave_model.MPI_SOURCE);
                     free(model_file);
                     model_file = load_model(new_model_filename, &model_size);
+                    printf("[MASTER] Merged model from slave %d\n", status_slave_model.MPI_SOURCE);
                     orders_complete++;
                 }
                 flag_no_model = 0;
@@ -216,11 +219,15 @@ void send_model_to_master(int master_rank, char *model_filename) {
 // Main slave logic
 void slave(int rank) {
     char model_filename[FILENAME_MAX];
+    char hostname[MPI_MAX_PROCESSOR_NAME];
+    int hostname_len;
     FILE *current_model;
 
     while (1) {
         // Notify the master that the slave is ready
         MPI_Send(NULL, 0, MPI_BYTE, MASTER, TAG_READY_SLAVE, MPI_COMM_WORLD);
+        MPI_Get_processor_name(hostname, &hostname_len);
+        printf("Slave %d (%s) is ready to work\n", rank, hostname);
         // Receive the order from the master
         char order_message[16];
         MPI_Recv(order_message, 16, MPI_CHAR, MASTER, TAG_ORDER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -247,6 +254,7 @@ void slave(int rank) {
             // Script finalized before TIMEOUT_TIME
             // Send the model to the master
             sprintf(model_filename, "%s%d-%s-model.pt", BASE_MODEL_PATH, rank, ENV_NAME);
+            printf("Slave %d (%s) finished the execution, sending the model to the master\n", rank, hostname);
             send_model_to_master(MASTER, model_filename);
         }
     }
