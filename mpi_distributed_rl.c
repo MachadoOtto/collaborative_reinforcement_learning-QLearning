@@ -22,7 +22,7 @@
 
 // Master logic
 // Send an order to a slave
-void send_order_to_slave(int slave_rank, int flag_no_model, char *model_file, long model_size) {
+void send_order_to_slave(int slave_rank, int flag_no_model, FILE *model_file, long model_size) {
     // Check if there is a model to send
     // Send the order tag without the FINISH message
     char order_msg[16];
@@ -51,7 +51,7 @@ FILE *receive_model_from_slave(int slave_rank, long slave_model_size) {
 }
 
 // Save a model to a file
-void save_model_to_file(char *model_file, long model_size, char *model_filename) {
+void save_model_to_file(FILE *model_file, long model_size, char *model_filename) {
     FILE *file = fopen(model_filename, "wb");
     if (!file) {
         perror("Failed to open file");
@@ -70,7 +70,7 @@ void merge_models(int slaveId) {
 
 // Load a model from a file to a buffer, it returns the buffer and the size of the model
 FILE *load_model(char *model_filename, long *model_size) {
-    FILE *new_model_file = fopen(new_model_filename, "rb");
+    FILE *new_model_file = fopen(model_filename, "rb");
     if (!new_model_file) {
         perror("Failed to open file");
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -91,8 +91,8 @@ FILE *load_model(char *model_filename, long *model_size) {
 
 // Main master logic
 void master() {
-    MPI_Request request_slave_ready;
-    MPI_Request request_slave_model;
+    MPI_Status request_slave_ready;
+    MPI_Status request_slave_model;
     int slave_rank;
 
     int flag_ready = 1;
@@ -127,7 +127,7 @@ void master() {
 
         // Check for models from slaves
         if (flag_complete) {
-            MPI_Irecv(&slave_model_size, 1, MPI_LONG, MPI_ANY_SOURCE, TAG_MODEL, MPI_COMM_WORLD, &request_slave_model);
+            MPI_Irecv(&slave_model_size, 1, MPI_LONG, MPI_ANY_SOURCE, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, &request_slave_model);
             flag_complete = 0;
         } else {
             MPI_Test(&request_slave_model, &flag_complete, MPI_STATUS_IGNORE);
@@ -154,7 +154,7 @@ void master() {
                     // Free the model file and save the merged model
                     merge_models(request_slave_model.MPI_SOURCE);
                     char new_model_filename[FILENAME_MAX];
-                    sprintf(new_model_filename, "%s%s-model%d-modelogeneral_merged_model.pt", BASE_MODEL_PATH, ENV_NAME, slaveId);
+                    sprintf(new_model_filename, "%s%s-model%d-modelogeneral_merged_model.pt", BASE_MODEL_PATH, ENV_NAME, request_slave_model.MPI_SOURCE);
                     free(model_file);
                     model_file = load_model(new_model_filename, &model_size);
                     orders_complete++;
@@ -213,7 +213,7 @@ void send_model_to_master(int master_rank, char *model_filename) {
 
 // Main slave logic
 void slave(int rank) {
-    char model_filename[MAX_FILENAME];
+    char model_filename[FILENAME_MAX];
     FILE *current_model;
 
     while (1) {
