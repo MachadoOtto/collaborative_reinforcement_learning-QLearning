@@ -40,13 +40,13 @@ void send_order_to_slave(int slave_rank, int flag_no_model, char *model_file, lo
 }
 
 // Receive a model from a slave
-FILE *receive_model_from_slave(MPI_Request request_slave_model, long slave_model_size) {
-    FILE slave_model_file = malloc(slave_model_size);
+FILE *receive_model_from_slave(int slave_rank, long slave_model_size) {
+    FILE *slave_model_file = malloc(slave_model_size);
     if (!slave_model_file) {
         perror("Failed to allocate buffer for MPI_Recv");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    MPI_Recv(slave_model_file, slave_model_size, MPI_BYTE, request_slave_model.MPI_SOURCE, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(slave_model_file, slave_model_size, MPI_BYTE, slave_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     return slave_model_file;
 }
 
@@ -136,7 +136,7 @@ void master() {
                 // MPI_Wait(&request_slave_model, MPI_STATUS_IGNORE); Innecesario
                 if (!flag_no_model) {
                     model_size = slave_model_size;
-                    model_file = receive_model_from_slave(request_slave_model, slave_model_size);
+                    model_file = receive_model_from_slave(request_slave_model.MPI_SOURCE, slave_model_size);
 
                     // Save the model to a file (BASE_MODEL_PATH)
                     char model_filename[FILENAME_MAX];
@@ -145,7 +145,7 @@ void master() {
                     orders_complete++;
                 } else {
                     // If there is a model already, save it to a .pt file, and free it
-                    FILE *slave_model = receive_model_from_slave(request_slave_model, slave_model_size);
+                    FILE *slave_model = receive_model_from_slave(request_slave_model.MPI_SOURCE, slave_model_size);
                     char slave_model_filename[FILENAME_MAX];
                     sprintf(slave_model_filename, "%s%s-model%d.pt", BASE_MODEL_PATH, ENV_NAME, request_slave_model.MPI_SOURCE);
                     save_model_to_file(slave_model, slave_model_size, slave_model_filename);
