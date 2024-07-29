@@ -1,135 +1,156 @@
-import numpy as np
+import math
+import random
+from collections import deque, namedtuple
+
+import config
 import torch as T
-from deep_q_network.DeepQNetwork import DeepQNetwork
+import torch.nn as nn
+import torch.optim as optim
+from reinforcement_learner.deep_q_network.DeepQNetwork import DQN
+
+Transition = namedtuple("Transition", ("state", "action", "next_state", "reward"))
+
+
+class ReplayMemory(object):
+    def __init__(self, capacity):
+        self.memory = deque([], maxlen=capacity)
+
+    def push(self, *args):
+        """Save a transition"""
+        self.memory.append(Transition(*args))
+
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+
+    def __len__(self):
+        return len(self.memory)
 
 
 class Agent:
-    def __init__(
-        self,
-        gamma,
-        epsilon,
-        lr,
-        input_dims,
-        batch_size,
-        n_actions,
-        max_mem_size=100000,
-        eps_end=0.05,
-        eps_dec=5e-4,
-        layer1_size=256,
-        layer2_size=256,
-    ):
-        self.gamma = gamma
-        self.epsilon = epsilon
-        self.eps_min = eps_end
-        self.eps_dec = eps_dec
-        self.lr = lr
-        self.n_actions = n_actions
-        self.action_space = [i for i in range(n_actions)]
-        self.mem_size = max_mem_size
+    def __init__(self, batch_size, gamma, eps_start, eps_end, eps_decay, tau, lr, env):
         self.batch_size = batch_size
-        self.mem_cntr = 0
-        self.iter_cntr = 0
-        self.replace_target = 100
+        self.gamma = gamma
+        self.eps_start = eps_start
+        self.eps_end = eps_end
+        self.eps_decay = eps_decay
+        self.tau = tau
+        self.lr = lr
 
-        self.Q_eval = DeepQNetwork(
-            lr,
-            n_actions=n_actions,
-            input_dims=input_dims,
-            fc1_dims=layer1_size,
-            fc2_dims=layer2_size,
+        self.env = env
+        self.n_observations = env.observation_space.shape[0]
+        self.n_actions = env.action_space.n
+
+        self.policy_net = DQN(self.n_observations, self.n_actions).to(config.DEVICE)
+        self.target_net = DQN(self.n_observations, self.n_actions).to(config.DEVICE)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+
+        self.optimizer = optim.AdamW(
+            self.policy_net.parameters(), lr=self.lr, amsgrad=True
         )
-        self.state_memory = np.zeros((self.mem_size, *input_dims), dtype=np.float32)
-        self.new_state_memory = np.zeros((self.mem_size, *input_dims), dtype=np.float32)
-        self.action_memory = np.zeros(self.mem_size, dtype=np.int32)
-        self.reward_memory = np.zeros(self.mem_size, dtype=np.float32)
-        self.terminal_memory = np.zeros(self.mem_size, dtype=np.bool_)
+        self.memory = ReplayMemory(10_000)
 
-    def store_transition(self, state, action, reward, state_, terminal):
-        index = self.mem_cntr % self.mem_size
-        self.state_memory[index] = state
-        self.new_state_memory[index] = state_
-        self.reward_memory[index] = reward
-        self.action_memory[index] = action
-        self.terminal_memory[index] = terminal
+        self.steps_done = 0
 
-        self.mem_cntr += 1
+    def eval(self):
+        self.policy_net.eval()
+        self.target_net.eval()
 
-    def choose_action(self, observation):
-        if np.random.random() > self.epsilon:
-            state = T.tensor(np.array(observation), dtype=T.float32).to(
-                self.Q_eval.device
-            )
-            actions = self.Q_eval.forward(state)
-            action = T.argmax(actions).item()
+    def train(self):
+        self.policy_net.train()
+        self.target_net.train()
+
+    @property
+    def eps_threshold(self):
+        return self.eps_end + (self.eps_start - self.eps_end) * math.exp(
+            -1.0 * self.steps_done / self.eps_decay
+        )
+
+    def choose_action(self, state):
+        sample = random.random()
+        self.steps_done += 1
+        if sample > self.eps_threshold:
+            with T.no_grad():
+                # t.max(1) will return the largest column value of each row.
+                # second column on max result is index of where max element was
+                # found, so we pick action with the larger expected reward.
+                return self.policy_net(state).max(1).indices.view(1, 1)
         else:
-            action = np.random.choice(self.action_space)
-
-        return action
+            return T.tensor(
+                [[self.env.action_space.sample()]], device=config.DEVICE, dtype=T.long
+            )
 
     def learn(self):
-        if self.mem_cntr < self.batch_size:
+        if len(self.memory) < self.batch_size:
             return
 
-        self.Q_eval.optimizer.zero_grad()
+        transitions = self.memory.sample(self.batch_size)
+        batch = Transition(*zip(*transitions))
 
-        max_mem = min(self.mem_cntr, self.mem_size)
-
-        batch = np.random.choice(max_mem, self.batch_size, replace=False)
-        batch_index = np.arange(self.batch_size, dtype=np.int32)
-
-        state_batch = T.tensor(self.state_memory[batch], dtype=T.float32).to(
-            self.Q_eval.device
+        non_final_mask = T.tensor(
+            tuple(map(lambda s: s is not None, batch.next_state)),
+            device=config.DEVICE,
+            dtype=T.bool,
         )
-        new_state_batch = T.tensor(self.new_state_memory[batch], dtype=T.float32).to(
-            self.Q_eval.device
-        )
-        action_batch = self.action_memory[batch]
-        reward_batch = T.tensor(self.reward_memory[batch], dtype=T.float32).to(
-            self.Q_eval.device
-        )
-        terminal_batch = T.tensor(self.terminal_memory[batch], dtype=T.bool).to(
-            self.Q_eval.device
-        )
+        non_final_next_states = T.cat([s for s in batch.next_state if s is not None])
+        state_batch = T.cat(batch.state)
+        action_batch = T.cat(batch.action)
+        reward_batch = T.cat(batch.reward)
 
-        q_eval = self.Q_eval.forward(state_batch)[batch_index, action_batch]
-        q_next = self.Q_eval.forward(new_state_batch)
-        q_next[terminal_batch] = 0.0
+        state_action_values = self.policy_net(state_batch).gather(1, action_batch)
+        next_state_values = T.zeros(self.batch_size, device=config.DEVICE)
+        with T.no_grad():
+            next_state_values[non_final_mask] = (
+                self.target_net(non_final_next_states).max(1).values
+            )
+        expected_state_action_values = (next_state_values * self.gamma) + reward_batch
 
-        q_target = reward_batch + self.gamma * T.max(q_next, dim=1)[0]
+        # Compute Huber loss
+        criterion = nn.SmoothL1Loss()
+        loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
 
-        loss = self.Q_eval.loss(q_target, q_eval).to(self.Q_eval.device)
+        # Optimize the model
+        self.optimizer.zero_grad()
         loss.backward()
-        self.Q_eval.optimizer.step()
+        # In-place gradient clipping
+        T.nn.utils.clip_grad_value_(self.policy_net.parameters(), 100)
+        self.optimizer.step()
 
-        self.iter_cntr += 1
-        self.epsilon = max(self.eps_min, self.epsilon * self.eps_dec)
+        target_net_state_dict = self.target_net.state_dict()
+        policy_net_state_dict = self.policy_net.state_dict()
+        for key in policy_net_state_dict:
+            target_net_state_dict[key] = policy_net_state_dict[
+                key
+            ] * self.tau + target_net_state_dict[key] * (1 - self.tau)
+        self.target_net.load_state_dict(target_net_state_dict)
 
-    def save_checkpoint(
-        self, episode: int, epsilon: float, path: str, model_name: str
-    ) -> None:
+    def save_checkpoint(self, episode: int, path: str, model_name: str) -> None:
         # https://pytorch.org/tutorials/beginner/saving_loading_models.html#saving-loading-a-general-checkpoint-for-inference-and-or-resuming-training
         T.save(
             {
                 "episode": episode,
-                "epsilon": epsilon,
-                "loss": self.Q_eval.loss,
-                "model_state_dict": self.Q_eval.state_dict(),
-                "optimizer_state_dict": self.Q_eval.optimizer.state_dict(),
+                "steps_done": self.steps_done,
+                "model_state_dict": self.policy_net.state_dict(),  # capaz cambiar a policy_net_state_dict
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "memory": self.memory,
             },
             f"{path}/{model_name}.tar",
         )
 
-    def load_checkpoint(self, path: str) -> tuple[int, float, float]:
+    def load_checkpoint(self, path: str) -> tuple[int, float]:
         checkpoint = T.load(path, map_location=T.device("cpu"))
 
-        self.Q_eval.load_state_dict(checkpoint["model_state_dict"])
-        self.Q_eval.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.policy_net.load_state_dict(checkpoint["model_state_dict"])
+        self.target_net.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.memory = checkpoint["memory"]
 
-        self.epsilon = checkpoint["epsilon"]
-        return checkpoint["episode"], checkpoint["loss"], checkpoint["epsilon"]
+        self.steps_done = checkpoint["steps_done"]
+
+        return checkpoint["episode"], self.eps_threshold()
 
     def save_model(self, path: str, model_name: str) -> None:
-        T.save(self.Q_eval.state_dict(), f"{path}/{model_name}.pt")
+        """Save for inference. Only the model."""
+        T.save(self.policy_net.state_dict(), f"{path}/{model_name}.pt")
 
     def load_model(self, path: str, from_checkpoint: bool = False) -> None:
         """
@@ -139,4 +160,6 @@ class Agent:
         model_state_dict = T.load(path, map_location=T.device("cpu"))
         if from_checkpoint:
             model_state_dict = model_state_dict["model_state_dict"]
-        self.Q_eval.load_state_dict(model_state_dict)
+
+        self.policy_net.load_state_dict(model_state_dict)
+        self.target_net.load_state_dict(model_state_dict)

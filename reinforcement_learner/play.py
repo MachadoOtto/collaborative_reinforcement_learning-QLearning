@@ -7,7 +7,7 @@ import config
 import gymnasium as gym
 import numpy as np
 import torch
-from discrete_agent.AgentV2 import Agent
+from reinforcement_learner.discrete_agent.Agent import Agent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
