@@ -87,20 +87,15 @@ def main(env_name: str, n_games: int, **kwargs):
     total_episodes = episode + n_games
     model_name = f"{env_name}-{total_episodes}"  # TODO: pensar un mejor sistema de versionado de nombres, algun hash o algo para saber tmbn cual es el modelo base
 
-    suffix = kwargs.get("save_suffix") or ""
-    out_path = f"{config.OUT_DIR}/models"
+    out_path = kwargs.get("out_path") or f"{config.OUT_DIR}/models"
     if kwargs.get("save_checkpoint"):
-        ag.save_checkpoint(
-            episode=total_episodes,
-            path=out_path,
-            model_name=f"{model_name}{suffix}",
-        )
+        ag.save_checkpoint(episode=total_episodes, path=out_path, model_name=model_name)
         logging.info("Model %s checkpointed at %s", model_name, out_path)
     if kwargs.get("save_model"):
-        ag.save_model(out_path, model_name=f"{model_name}{suffix}")
+        ag.save_model(out_path, model_name=model_name)
         logging.info("Model %s saved at %s", model_name, out_path)
 
-    csv_file = f"{config.OUT_DIR}/stats/{env_name}{suffix}.csv"
+    csv_file = f"{config.OUT_DIR}/stats/{env_name}.csv"
     save_stats_to_csv(statistics, csv_file, write_header=not os.path.exists(csv_file))
     logging.info("Statistics saved at %s", csv_file)
 
@@ -128,10 +123,10 @@ if __name__ == "__main__":
         help="Wheter to save a full checkpoint or not",
     )
     arg_parser.add_argument(
-        "--save_suffix",
+        "--out_path",
         type=str,
         default=None,
-        help="Suffix to add to the saved model/checkpoint name",
+        help="Path to save the model/checkpoint. Default: '{OUT_DIR}/models/'",
     )
 
     load_group = arg_parser.add_mutually_exclusive_group()
