@@ -24,7 +24,7 @@
 
 // Master logic
 // Send an order to a slave
-void send_order_to_slave(int slave_rank, int flag_no_model, FILE *model_file, long model_size) {
+void send_order_to_slave(int slave_rank, int flag_no_model, char *model_file, long model_size) {
     // Check if there is a model to send
     // Send the order tag without the FINISH message
     char order_msg[16];
@@ -42,24 +42,20 @@ void send_order_to_slave(int slave_rank, int flag_no_model, FILE *model_file, lo
 }
 
 // Receive a model from a slave
-FILE *receive_model_from_slave(int slave_rank, long slave_model_size) {
-    FILE *slave_model_file = malloc(slave_model_size);
+char *receive_model_from_slave(int slave_rank, long slave_model_size) {
+    char *slave_model_file = malloc(slave_model_size);
     if (!slave_model_file) {
         perror("Failed to allocate buffer for MPI_Recv");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    // Receive the model from the slave in chunks of 1MB
-    int offset = 0;
-    while (offset < slave_model_size) {
-        int chunk_size = slave_model_size - offset > 1048576 ? 1048576 : slave_model_size - offset;
-        MPI_Recv(slave_model_file + offset, chunk_size, MPI_BYTE, slave_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        offset += chunk_size;
-    }
+    // Receive the model from the slave 
+    printf("MASTER model size: %ld\n", slave_model_size);
+    MPI_Recv(slave_model_file, slave_model_size, MPI_BYTE, slave_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     return slave_model_file;
 }
 
 // Save a model to a file
-void save_model_to_file(FILE *model_file, long model_size, char *model_filename) {
+void save_model_to_file(char *model_file, long model_size, char *model_filename) {
     FILE *file = fopen(model_filename, "wb");
     if (!file) {
         perror("Failed to open file");
@@ -77,7 +73,7 @@ void merge_models(int slaveId) {
 }
 
 // Load a model from a file to a buffer, it returns the buffer and the size of the model
-FILE *load_model(char *model_filename, long *model_size) {
+char *load_model(char *model_filename, long *model_size) {
     FILE *new_model_file = fopen(model_filename, "rb");
     if (!new_model_file) {
         perror("Failed to open file");
@@ -86,7 +82,7 @@ FILE *load_model(char *model_filename, long *model_size) {
     fseek(new_model_file, 0, SEEK_END);
     long new_model_size = ftell(new_model_file);
     fseek(new_model_file, 0, SEEK_SET);
-    FILE *model_file = malloc(new_model_size);
+    char *model_file = malloc(new_model_size);
     if (!model_file) {
         perror("Failed to allocate buffer for MPI_Send");
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -106,11 +102,13 @@ void master() {
     int slave_rank;
 
     int flag_ready = 1;
+    int flag_ready_slave = 0;
     int flag_complete = 1;
+    int flag_complete_slave = 0;
     int flag_no_model = 1;
     int orders_complete = 0;
 
-    FILE *model_file;
+    char *model_file;
     long model_size;
     long slave_model_size;
     
@@ -120,8 +118,9 @@ void master() {
             MPI_Irecv(NULL, 0, MPI_BYTE, MPI_ANY_SOURCE, TAG_READY_SLAVE, MPI_COMM_WORLD, &request_slave_ready);
             flag_ready = 0;
         } else {
-            MPI_Test(&request_slave_ready, &flag_ready, &status_slave_ready);
-            if (flag_ready) {
+            MPI_Test(&request_slave_ready, &flag_ready_slave, &status_slave_ready);
+            if (flag_ready_slave) {
+                flag_ready_slave = 0;
                 // There is a slave ready
                 slave_rank = status_slave_ready.MPI_SOURCE;
                 if (orders_complete < MAX_ORDERS) {
@@ -132,6 +131,7 @@ void master() {
                     sprintf(finish_msg, "FINISH");
                     MPI_Send(finish_msg, strlen(finish_msg) + 1, MPI_CHAR, slave_rank, TAG_ORDER, MPI_COMM_WORLD);
                 }
+                flag_ready = 1;
             }
         }
 
@@ -140,8 +140,9 @@ void master() {
             MPI_Irecv(&slave_model_size, 1, MPI_LONG, MPI_ANY_SOURCE, TAG_SIZE_MODEL_TO_MASTER, MPI_COMM_WORLD, &request_slave_model);
             flag_complete = 0;
         } else {
-            MPI_Test(&request_slave_model, &flag_complete, &status_slave_model);
-            if (flag_complete) {
+            MPI_Test(&request_slave_model, &flag_complete_slave, &status_slave_model);
+            if (flag_complete_slave) {
+                flag_complete_slave = 0;
                 // There is a model to receive
                 printf("[MASTER] Receiving model from slave %d\n", status_slave_model.MPI_SOURCE);
                 if (!flag_no_model) {
@@ -155,7 +156,7 @@ void master() {
                     orders_complete++;
                 } else {
                     // If there is a model already, save it to a .pt file, and free it
-                    FILE *slave_model = receive_model_from_slave(status_slave_model.MPI_SOURCE, slave_model_size);
+                    char *slave_model = receive_model_from_slave(status_slave_model.MPI_SOURCE, slave_model_size);
                     char slave_model_filename[FILENAME_MAX];
                     sprintf(slave_model_filename, "%s%s-model%d.pt", BASE_MODEL_PATH, ENV_NAME, status_slave_model.MPI_SOURCE);
                     save_model_to_file(slave_model, slave_model_size, slave_model_filename);
@@ -179,9 +180,9 @@ void master() {
 
 // Slave logic
 // Receive a model from the master and save it to a file
-FILE *receive_model_from_master(long model_size, int rank) {
+char *receive_model_from_master(long model_size, int rank) {
     // Receive the model
-    FILE *model_file = malloc(model_size);
+    char *model_file = malloc(model_size);
     if (!model_file) {
         perror("Failed to allocate buffer for MPI_Recv");
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -219,14 +220,10 @@ void send_model_to_master(int master_rank, char *model_filename) {
     fclose(file);
     printf("Sending size\n");
     MPI_Send(&file_size, 1, MPI_LONG, master_rank, TAG_SIZE_MODEL_TO_MASTER, MPI_COMM_WORLD);
-    // Send the model in chunks of 1MB
-    int offset = 0;
+    // Send the model
+    printf("SLAVE model size: %ld\n", file_size);
     printf("Sending model\n");
-    while (offset < file_size) {
-        int chunk_size = file_size - offset > 1048576 ? 1048576 : file_size - offset;
-        MPI_Send(buffer + offset, chunk_size, MPI_BYTE, master_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD);
-        offset += chunk_size;
-    }
+    MPI_Send(buffer, file_size, MPI_BYTE, master_rank, TAG_MODEL_TO_MASTER, MPI_COMM_WORLD);    
     free(buffer);
 }
 
@@ -235,7 +232,7 @@ void slave(int rank) {
     char model_filename[FILENAME_MAX];
     char hostname[MPI_MAX_PROCESSOR_NAME];
     int hostname_len;
-    FILE *current_model;
+    char *current_model;
 
     while (1) {
         // Notify the master that the slave is ready
