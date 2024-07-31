@@ -1,12 +1,16 @@
 import copy
 import importlib
 import logging
+import warnings
 from argparse import ArgumentParser
 
 import config
 import gymnasium as gym
 import torch
 from discrete_agent.Agent import Agent
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(message)s")
 
@@ -52,7 +56,10 @@ def main(env_name: str, suffixes: list[str], **kwargs) -> None:
     )
 
     model_states = [
-        torch.load(f"{config.OUT_DIR}/models/{env_name}{suff}.pt") for suff in suffixes
+        torch.load(
+            f"{config.OUT_DIR}/models/{env_name}{suff}.pt", map_location=config.DEVICE
+        )
+        for suff in suffixes
     ]
 
     out_path = kwargs.get("out_path", None)
