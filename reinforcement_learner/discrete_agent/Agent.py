@@ -1,5 +1,6 @@
 import math
 import random
+import warnings
 from collections import deque, namedtuple
 
 import config
@@ -157,7 +158,9 @@ class Agent:
         Este se usa cuando el master le pase un modelo.
         Ahi no tiene sentido cargar el optimizador porque cada slave genero un estado del optimizador distinto, tiene que emepezar con un optimizador nuevo.
         """
-        model_state_dict = T.load(path, map_location=T.device(config.DEVICE))
+        with warnings.catch_warnings():
+            warnings.simplefilter(action="ignore", category=FutureWarning)
+            model_state_dict = T.load(path, map_location=T.device(config.DEVICE))
         if from_checkpoint:
             model_state_dict = model_state_dict["model_state_dict"]
 
