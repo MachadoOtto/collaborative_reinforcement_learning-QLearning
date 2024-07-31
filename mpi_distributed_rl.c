@@ -123,7 +123,6 @@ void receive_model_from_slave(int slave_rank, long slave_model_size, int not_exi
 void merge_models(int slaveId) {
     char command[FILENAME_MAX + 50];
     sprintf(command, "python3 ./reinforcement_learner/master.py --env_name=%s --suffix='-slave_model,-master_model'", ENV_NAME);
-    printf("[MASTER] %s\n", command);
     system(command);
     char master_model_filename[FILENAME_MAX];
     sprintf(master_model_filename, "%s%s-master_model.pt", BASE_MODEL_PATH, ENV_NAME);
