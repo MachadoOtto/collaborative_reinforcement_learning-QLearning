@@ -5,14 +5,13 @@ import warnings
 from argparse import ArgumentParser
 
 import config
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
 import gymnasium as gym
 import torch
 from discrete_agent.Agent import Agent
 
-warnings.simplefilter(action="ignore", category=FutureWarning)
-
-
-logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 
 def fedavg(global_model, agents, out_path: str) -> None:
