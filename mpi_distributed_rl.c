@@ -31,10 +31,10 @@
 #define MASTER 0
 
 // Global constants (MODIFY HERE)
-#define MAX_ORDERS 30
+#define MAX_ORDERS 200
 #define ENV_NAME "CartPole-v1"
 #define TIMEOUT_TIME 300 // 5 minutes
-#define N_GAMES 100
+#define N_GAMES 50
 #define BASE_MODEL_PATH "./reinforcement_learner/outputs/models/"
 
 // MASTER LOGIC //
@@ -334,7 +334,6 @@ void slave(int rank) {
         idle_time += end - start;
         if (strcmp(order_message, "FINISH") == 0) {
             // Finish the execution
-            printf("[SLAVE %d] Finished the execution with idle time %f, and completed %d orders\n", rank, idle_time, count_completed_orders);
             break;
         }
         // Receive size of model, if it is 0, there is no model to receive
@@ -361,32 +360,35 @@ void slave(int rank) {
     }
     // Wait for all slaves to finish with MPI_Barrier
     MPI_Barrier(MPI_COMM_WORLD);
+    printf("[SLAVE %d] Finished the execution with idle time %f, and completed %d orders\n", rank, idle_time, count_completed_orders);
 }
 
 // MAIN //
 int main(int argc, char *argv[]) {
-    printf("MPI Distributed Reinforcement Learning\n");
-    printf("Authors:\n");
-    printf("  - Guido Dinello ( 5.031.022-5 )\n");
-    printf("  - Jorge Machado ( 4.876.616-9 )\n");
-    printf("HPC - High Performance Computing - 2024\n");
-    printf("Facultad de Ingeniería - Universidad de la República, Uruguay\n");
-    printf("\n");
-
     int rank, size;
-
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    int num_games = N_GAMES * MAX_ORDERS;
-    printf(" - Environment: %s\n", ENV_NAME);
-    printf(" - Number of games: %d\n", num_games);
-    printf(" - Timeout time: %d seconds\n", TIMEOUT_TIME);
     
     if (rank == MASTER) {
+        printf("MPI Distributed Reinforcement Learning\n");
+        printf("Authors:\n");
+        printf("  - Guido Dinello ( 5.031.022-5 )\n");
+        printf("  - Jorge Machado ( 4.876.616-9 )\n");
+        printf("HPC - High Performance Computing - 2024\n");
+        printf("Facultad de Ingeniería - Universidad de la República, Uruguay\n");
+        printf("\n");
+
+        int num_games = N_GAMES * MAX_ORDERS;
+        printf(" - Environment: %s\n", ENV_NAME);
+        printf(" - Number of games: %d\n", num_games);
+        printf(" - Timeout time: %d seconds\n", TIMEOUT_TIME);
+
+        printf("INITIALIZING...\n");
+        MPI_Barrier(MPI_COMM_WORLD);
         master(size);
     } else {
+        MPI_Barrier(MPI_COMM_WORLD);
         slave(rank);
     }
 
