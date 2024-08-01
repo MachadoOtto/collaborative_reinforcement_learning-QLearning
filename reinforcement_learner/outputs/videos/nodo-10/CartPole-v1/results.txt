@@ -1,0 +1,7 @@
+❯ python reinforcement_learner/play.py --env_name="CartPole-v1" --model="outputs/models/nodo-10/CartPole-v1-10000it/CartPole-v1-master_model.pt" --record=500
+Total Episodes:  500
+cumulative reward
+mean= 172.818
+std= 150.808
+min= 10.0
+max= 500.0
