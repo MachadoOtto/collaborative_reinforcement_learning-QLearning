@@ -9,8 +9,6 @@ This repository contains the implementation of a distributed reinforcement learn
 HPC - High Performance Computing - 2024  
 Facultad de Ingeniería - Universidad de la República, Uruguay
 
-[![Watch the video](https://raw.githubusercontent.com/MachadoOtto/collaborative_reinforcement_learning-QLearning/main/outputs/videos/thumbnail.png)](https://raw.githubusercontent.com/MachadoOtto/collaborative_reinforcement_learning-QLearning/main/outputs/videos/FlappyBird-v0-episode-127.mp4)
-
 ## Description
 
 This code facilitates distributed reinforcement learning by leveraging MPI to parallelize the training process across multiple nodes. The master node coordinates the workflow, sending models to slave nodes, collecting results, and merging models. Slave nodes execute reinforcement learning tasks and send results back to the master.
