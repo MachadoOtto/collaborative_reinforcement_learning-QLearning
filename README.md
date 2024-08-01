@@ -9,7 +9,7 @@ This repository contains the implementation of a distributed reinforcement learn
 HPC - High Performance Computing - 2024  
 Facultad de Ingeniería - Universidad de la República, Uruguay
 
-[![Watch the video](https://raw.githubusercontent.com/MachadoOtto/collaborative_reinforcement_learning-QLearning/main/outputs/videos/thumbnail.png)](https://raw.githubusercontent.com/yourusername/yourrepository/main/assets/video.mp4)
+[![Watch the video](https://raw.githubusercontent.com/MachadoOtto/collaborative_reinforcement_learning-QLearning/main/outputs/videos/thumbnail.png)](https://raw.githubusercontent.com/MachadoOtto/collaborative_reinforcement_learning-QLearning/main/outputs/videos/FlappyBird-v0-episode-127.mp4)
 
 ## Description
 
