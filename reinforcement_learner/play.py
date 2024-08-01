@@ -25,7 +25,7 @@ def run_episode(env, agent, record_video=False):
     done = False
 
     if record_video:
-        env.start_video_recorder()
+        env.get_wrapper_attr("start_video_recorder")
 
     while not done:
         action = agent.choose_action(state)
@@ -65,20 +65,43 @@ def record(env_kwargs, agent, n=100):
     tmp_env = create_env(env_kwargs, render_mode="rgb_array")
     env = gym.wrappers.RecordVideo(
         tmp_env,
-        f"{config.OUT_DIR}/videos",
+        f"{config.OUT_DIR}/videos/{env_kwargs["env"]["name"]}",
         name_prefix=env_kwargs["env"]["name"],
-        episode_trigger=gym.wrappers.capped_cubic_video_schedule,
+        episode_trigger=lambda x: True,
+        disable_logger=True,
     )
+    env = gym.wrappers.RecordEpisodeStatistics(env)
     agent.eval()
 
-    for _ in range(n):
+    datas = []
+    best_path, best_metadata, best_score = None, None, -np.inf
+    for episode in range(n):
         data = run_episode(env, agent, record_video=True)
+        datas.append(data)
         score = data["r"][0]
-        print("score ", score)
-        if score <= 0:
-            os.remove(env.video_recorder.path)
-            os.remove(env.video_recorder.metadata_path)
+        print(f"Episode {episode + 1}/{n}, Score: {score}")
 
+        video_recorder = env.get_wrapper_attr("video_recorder")
+        current_video_path = video_recorder.path
+        current_metadata_path = video_recorder.metadata_path
+
+        if score > best_score:
+            print(f"New best score: {score}")
+            if best_path and os.path.exists(best_path):
+                os.remove(best_path)
+            if best_metadata and os.path.exists(best_metadata):
+                os.remove(best_metadata)
+
+            best_score = score
+            best_path = current_video_path
+            best_metadata = current_metadata_path
+        else:
+            if os.path.exists(current_video_path):
+                os.remove(current_video_path)
+            if os.path.exists(current_metadata_path):
+                os.remove(current_metadata_path)
+
+    print_statistics(datas, n)
     env.close()
 
 
@@ -118,9 +141,7 @@ def main(env_name: str, model: str, **kwargs) -> None:
     ag = Agent(**config.TUTORIAL, env=env)
     env.close()
 
-    ag.load_model(
-        f"{config.OUT_DIR}/models/{model}", from_checkpoint=model.endswith(".tar")
-    )
+    ag.load_model(model, from_checkpoint=model.endswith(".tar"))
 
     if kwargs.get("record") is not None:
         record(env_kwargs=config.CONFIGS[env_name], agent=ag, n=kwargs["record"])
@@ -147,7 +168,7 @@ if __name__ == "__main__":
     arg_parser.add_argument(
         "--record",
         type=int,
-        help="Records some episodes.",
+        help="Record best episode over <n> episodes. Default: 100",
     )
 
     arg_parser.add_argument(
