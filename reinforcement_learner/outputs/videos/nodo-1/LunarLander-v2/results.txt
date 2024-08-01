@@ -1,0 +1,7 @@
+❯ python reinforcement_learner/play.py --env_name="LunarLander-v2" --model="outputs/models/nodo-1/LunarLander-v2-10000.pt" --record=500
+Total Episodes:  500
+cumulative reward
+mean= 229.70016
+std= 86.716385
+min= -91.19588
+max= 319.4511
