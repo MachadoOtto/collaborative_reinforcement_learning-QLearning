@@ -1,7 +1,0 @@
-❯ python reinforcement_learner/play.py --env_name="FlappyBird-v0" --model="outputs/models/nodo-1/FlappyBird-v0-10000.pt" --record=500
-Total Episodes:  500
-cumulative reward
-mean= 5.098801
-std= 5.8628864
-min= -8.700001
-max= 36.5
